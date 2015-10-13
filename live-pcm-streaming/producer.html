@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Auto Auction Germany Live Auction Stream</title>
+  </head>
+  <body>
+	  <p>Auction Audio Stream control</p>
+	  <button onclick="startRecording()">Start Recording</button>
+	  <button onclick="stopRecording()">Stop Recording</button>
+    <script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+    <script>
+
+    var socket = io();
+
+    if (!navigator.getUserMedia)
+      navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia ||
+    navigator.mozGetUserMedia || navigator.msGetUserMedia;
+
+    if (navigator.getUserMedia) {
+      navigator.getUserMedia({audio:true}, success, function(e) {
+        alert('Error capturing audio.');
+      });
+    } else alert('getUserMedia not supported in this browser.');
+
+    var recording = false;
+
+    startRecording = function() {
+      recording = true;
+    }
+
+    stopRecording = function() {
+      recording = false;
+      socket.end();
+    }
+
+
+    function success(e) {
+      audioContext = window.AudioContext || window.webkitAudioContext;
+      context = new audioContext();
+
+      // the sample rate is in context.sampleRate
+      audioInput = context.createMediaStreamSource(e);
+
+      var bufferSize = 16384; //2048;
+      recorder = context.createScriptProcessor(bufferSize, 1, 1);
+
+      recorder.onaudioprocess = function(e){
+        if(!recording) return;
+        console.log ('recording');
+        var left = e.inputBuffer.getChannelData(0);
+		var ab1 = convertoFloat32ToInt16(left);
+		
+		console.log('emit bytes: ' + ab1.byteLength);
+        socket.emit('producer audio chunk', ab1);
+
+		// some logging
+		var ab = new Int16Array(ab1);
+		var s = '';
+		for (var i = 0; i < 1024; i++) {
+			s += ' ' + ab[i];
+		}
+		//console.log(s);
+
+      }
+
+      audioInput.connect(recorder)
+      recorder.connect(context.destination); 
+    }
+
+    function convertoFloat32ToInt16(buffer) {
+      var l = buffer.length;
+      var buf = new Int16Array(l)
+
+      while (l--) {
+        buf[l] = buffer[l]*0xFFFF;    //convert to 16 bit
+      }
+//	  console.log(buf)
+      return buf.buffer
+    }
+    </script>
+  </body>
+</html>
